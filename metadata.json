@@ -1,0 +1,10 @@
+{
+  "name": "Live Chat",
+  "description": "A real-time chat application with support for text, images, voice messages, and reactions.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
