@@ -14,6 +14,8 @@ export interface Message {
   senderId: string;
   senderName: string;
   senderPhoto: string;
+  receiverId?: string;
+  read?: boolean;
   createdAt: number;
   reactions?: Record<string, string>; // userId -> emoji
 }

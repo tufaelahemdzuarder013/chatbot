@@ -18,7 +18,22 @@ export function ChatRoom({ user }: { user: User }) {
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Update current time to trigger presence re-renders
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isUserOnline = useCallback((lastSeen: any) => {
+    if (!lastSeen) return false;
+    const lastSeenTime = typeof lastSeen.toMillis === 'function' ? lastSeen.toMillis() : 
+                        (lastSeen.seconds ? lastSeen.seconds * 1000 : lastSeen);
+    return currentTime - lastSeenTime < 60000;
+  }, [currentTime]);
 
   // Fetch users
   useEffect(() => {
@@ -32,6 +47,26 @@ export function ChatRoom({ user }: { user: User }) {
       });
       setUsers(fetchedUsers);
     });
+    return () => unsubscribe();
+  }, [user.uid]);
+
+  // Fetch unread message counts
+  useEffect(() => {
+    const q = query(
+      collection(db, "messages"),
+      where("receiverId", "==", user.uid),
+      where("read", "==", false)
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const counts: Record<string, number> = {};
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        counts[data.senderId] = (counts[data.senderId] || 0) + 1;
+      });
+      setUnreadCounts(counts);
+    });
+    
     return () => unsubscribe();
   }, [user.uid]);
 
@@ -52,10 +87,23 @@ export function ChatRoom({ user }: { user: User }) {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMessages: Message[] = [];
+      const unreadDocIds: string[] = [];
+      
       snapshot.forEach((doc) => {
-        fetchedMessages.push({ id: doc.id, ...doc.data() } as Message);
+        const data = doc.data();
+        fetchedMessages.push({ id: doc.id, ...data } as Message);
+        if (data.receiverId === user.uid && data.read === false) {
+          unreadDocIds.push(doc.id);
+        }
       });
+      
       setMessages(fetchedMessages);
+      
+      // Mark as read
+      unreadDocIds.forEach(id => {
+        updateDoc(doc(db, "messages", id), { read: true }).catch(console.error);
+      });
+      
       setTimeout(() => {
         scrollRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
@@ -107,6 +155,8 @@ export function ChatRoom({ user }: { user: User }) {
       senderId: user.uid,
       senderName: user.displayName || "Anonymous",
       senderPhoto: user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || "User"}`,
+      receiverId: selectedUser.uid,
+      read: false,
       createdAt: Date.now(),
       reactions: {}
     };
@@ -179,12 +229,21 @@ export function ChatRoom({ user }: { user: User }) {
                   )}
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col justify-center">
                     <span className={cn("font-semibold text-sm truncate", selectedUser?.uid === u.uid ? "text-white" : "text-white/80")}>
                       {u.displayName || "Unknown User"}
                     </span>
+                    <span className={cn("text-[10px] flex items-center gap-1", isUserOnline(u.lastSeen) ? "text-green-400" : "text-white/40")}>
+                      <span className={cn("w-1.5 h-1.5 rounded-full", isUserOnline(u.lastSeen) ? "bg-green-400" : "bg-white/40")}></span>
+                      {isUserOnline(u.lastSeen) ? "Online" : "Offline"}
+                    </span>
                   </div>
                 </div>
+                {unreadCounts[u.uid] > 0 && (
+                  <div className="bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shrink-0 shadow-sm">
+                    {unreadCounts[u.uid]}
+                  </div>
+                )}
               </div>
             ))}
             {filteredUsers.length === 0 && (
@@ -233,6 +292,10 @@ export function ChatRoom({ user }: { user: User }) {
                   </div>
                   <div>
                     <h2 className="font-medium text-white">{selectedUser.displayName}</h2>
+                    <span className={cn("text-[10px] flex items-center gap-1", isUserOnline(selectedUser.lastSeen) ? "text-green-400" : "text-white/40")}>
+                      <span className={cn("w-1.5 h-1.5 rounded-full", isUserOnline(selectedUser.lastSeen) ? "bg-green-400" : "bg-white/40")}></span>
+                      {isUserOnline(selectedUser.lastSeen) ? "Online" : "Offline"}
+                    </span>
                   </div>
                 </div>
               </header>

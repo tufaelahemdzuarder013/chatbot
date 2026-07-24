@@ -35,6 +35,23 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    
+    // Update lastSeen every 30 seconds to maintain presence
+    const intervalId = setInterval(() => {
+      setDoc(
+        doc(db, "users", user.uid),
+        {
+          lastSeen: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(console.error);
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [user]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]">

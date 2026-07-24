@@ -74,10 +74,15 @@ export const ChatMessage: React.FC<{
             )}
             
             <div className={cn(
-              "text-[10px] mt-1 select-none",
-              isMe ? "text-white/60 text-right" : "text-white/40"
+              "text-[10px] mt-1 select-none flex items-center gap-1",
+              isMe ? "text-white/60 justify-end" : "text-white/40 justify-start"
             )}>
-              {format(message.createdAt, "h:mm a")}
+              <span>{format(message.createdAt, "h:mm a")}</span>
+              {isMe && (
+                <span className="font-medium text-[9px] uppercase tracking-wider">
+                  {message.read ? "• Seen" : "• Sent"}
+                </span>
+              )}
             </div>
           </div>
           
